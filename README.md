@@ -18,8 +18,11 @@ It is **not** a reaction-time game and does not attempt to teach English vocabul
 
 - [Product design — Word](docs/Piano-Typing-Product-Design.docx)
 - [Product design — PDF](docs/Piano-Typing-Product-Design.pdf)
+- [Editable Markdown source](docs/Piano-Typing-Product-Design.md)
 
 The specification covers product strategy, user experience, sound and composition engine, input handling, metrics, privacy, MVP acceptance criteria, experiments, and phased roadmap.
+
+The Word and PDF files are generated from the Markdown source by [GitHub Actions](.github/workflows/build-docs.yml).
 
 ## Status
 
