@@ -4,6 +4,9 @@ import KeyboardVisualizer from "./components/KeyboardVisualizer";
 import AudioVisualizer from "./components/AudioVisualizer";
 import { mapKeyToMidi } from "./domain/music/mapping";
 import MusicSettings from "./components/MusicSettings";
+import CompositionStudio from "./components/CompositionStudio";
+import { encodeMidi } from "./domain/export/midi";
+import { CompositionStore, exportCompositionJson, importCompositionJson } from "./infrastructure/storage/compositionStore";
 import { getPhraseAccent, getPhraseChord, getWordBoundaryBass } from "./domain/music/harmony";
 import { calculateTypingMetrics } from "./domain/typing/metrics";
 import type {
@@ -16,13 +19,7 @@ import type {
   SoundPreset
 } from "./domain/types";
 import { AudioEngine } from "./infrastructure/audio/AudioEngine";
-import {
-  DEFAULT_SETTINGS,
-  readCompositions,
-  readSettings,
-  saveComposition,
-  writeSettings
-} from "./infrastructure/storage/repository";
+import { DEFAULT_SETTINGS, readSettings, writeSettings } from "./infrastructure/storage/repository";
 
 const TARGET_TEXT = "The quiet morning begins with a single note.";
 const MAX_SESSION_NOTES = 2_000;
@@ -49,11 +46,16 @@ function getBrowserStorage(): Storage | null {
   }
 }
 
-const PRESET_LABELS: Record<SoundPreset, string> = {
-  "felt-piano": "Felt Piano",
-  "soft-electric": "Soft Electric",
-  "ambient-pluck": "Ambient Pluck"
-};
+function downloadFile(name: string, bytes: BlobPart[], mimeType: string): void {
+  const objectUrl = URL.createObjectURL(new Blob(bytes, { type: mimeType }));
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = name.replace(/[^a-z0-9._-]/gi, "-").slice(0, 90);
+  anchor.click();
+  // Delay revocation until the browser has begun the download.
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+}
+
 
 export default function App() {
   const storageRef = useRef<Storage | null>(null);
@@ -62,6 +64,9 @@ export default function App() {
   const audioEngineRef = useRef<AudioEngine | null>(null);
   if (audioEngineRef.current === null) audioEngineRef.current = new AudioEngine();
   const audioEngine = audioEngineRef.current;
+  const compositionStoreRef = useRef<CompositionStore | null>(null);
+  if (!compositionStoreRef.current) compositionStoreRef.current = new CompositionStore(storageRef.current);
+  const compositionStore = compositionStoreRef.current;
 
   const [settings, setSettings] = useState<AppSettings>(() =>
     storageRef.current ? readSettings(storageRef.current) : { ...DEFAULT_SETTINGS }
@@ -77,9 +82,7 @@ export default function App() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [paused, setPaused] = useState(false);
   const [notice, setNotice] = useState("");
-  const [compositions, setCompositions] = useState<SavedComposition[]>(() =>
-    storageRef.current ? readCompositions(storageRef.current) : []
-  );
+  const [compositions, setCompositions] = useState<SavedComposition[]>([]);
 
   const startedAtRef = useRef<number | null>(null);
   const pausedAtRef = useRef<number | null>(null);
@@ -117,6 +120,16 @@ export default function App() {
   }, [audioEngine]);
 
   useEffect(() => () => audioEngine.dispose(), [audioEngine]);
+
+  useEffect(() => {
+    let active = true;
+    void compositionStore.list().then((items) => {
+      if (active) setCompositions(items);
+    }).catch(() => {
+      if (active) setNotice("Saved compositions could not be loaded.");
+    });
+    return () => { active = false; };
+  }, [compositionStore]);
 
   const metrics = useMemo(() => calculateTypingMetrics({
     typedText: text,
@@ -250,7 +263,11 @@ export default function App() {
     audioEngine.setPreset(settings.preset);
   }
 
-  function saveCurrentComposition(): void {
+  async function refreshCompositions(): Promise<void> {
+    setCompositions(await compositionStore.list());
+  }
+
+  async function saveCurrentComposition(): Promise<void> {
     const notes = noteEventsRef.current.slice(0, MAX_SESSION_NOTES);
     if (notes.length === 0) {
       setNotice("Play a few notes before saving a composition.");
@@ -258,6 +275,7 @@ export default function App() {
     }
 
     const composition: SavedComposition = {
+      schemaVersion: 2,
       id: createId(),
       title: "Untitled composition",
       createdAt: new Date().toISOString(),
@@ -265,20 +283,75 @@ export default function App() {
         ? elapsedMs
         : Math.max(0, (pausedAtRef.current ?? performance.now()) - startedAtRef.current - accumulatedPauseMsRef.current),
       preset: settings.preset,
+      mappingMode: settings.mappingMode,
+      scaleId: settings.scaleId,
+      rootMidi: settings.rootMidi,
+      customScale: settings.customScale,
       notes
     };
 
-    const saved = storageRef.current
-      ? saveComposition(composition, storageRef.current)
-      : false;
-
-    if (!saved) {
+    if (!await compositionStore.save(composition)) {
       setNotice("This browser could not save the composition. Your current session is still available.");
       return;
     }
-
-    setCompositions((current) => [composition, ...current].slice(0, 20));
+    await refreshCompositions();
     setNotice("Composition saved locally. Your original text was not stored.");
+  }
+
+  async function renameComposition(id: string, title: string): Promise<boolean> {
+    const saved = await compositionStore.rename(id, title);
+    if (saved) {
+      await refreshCompositions();
+      setNotice("Composition renamed.");
+    } else setNotice("Unable to rename composition. Please enter 1–100 characters.");
+    return saved;
+  }
+
+  async function deleteComposition(id: string): Promise<boolean> {
+    const saved = await compositionStore.delete(id);
+    if (saved) {
+      await refreshCompositions();
+      setNotice("Composition deleted.");
+    } else setNotice("Unable to delete composition.");
+    return saved;
+  }
+
+  async function clearLibrary(): Promise<boolean> {
+    const saved = await compositionStore.clear();
+    if (saved) {
+      await refreshCompositions();
+      setNotice("Saved compositions have been cleared from this device.");
+    } else setNotice("Unable to clear the composition library.");
+    return saved;
+  }
+
+  function exportComposition(composition: SavedComposition, format: "json" | "midi"): void {
+    try {
+      const filename = composition.title || "composition";
+      if (format === "json") {
+        downloadFile(filename + ".json", [exportCompositionJson(composition)], "application/json");
+      } else {
+        downloadFile(filename + ".mid", [new Uint8Array(encodeMidi(composition.notes))], "audio/midi");
+      }
+      setNotice("Composition exported as " + format.toUpperCase() + ".");
+    } catch {
+      setNotice("The composition could not be exported.");
+    }
+  }
+
+  async function importComposition(file: File): Promise<void> {
+    try {
+      if (file.size > 1_000_000) throw new Error("File exceeds 1 MB.");
+      const imported = importCompositionJson(await file.text());
+      const saved = await compositionStore.save({
+        ...imported, id: createId(), createdAt: new Date().toISOString()
+      });
+      if (!saved) throw new Error("Storage failed.");
+      await refreshCompositions();
+      setNotice("Composition imported. Original text remains private.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Composition import failed.");
+    }
   }
 
   function togglePause(): void {
@@ -481,7 +554,7 @@ export default function App() {
             <button
               className="secondary-button save-button"
               type="button"
-              onClick={saveCurrentComposition}
+              onClick={() => void saveCurrentComposition()}
               disabled={noteEventsRef.current.length === 0}
             >
               Save composition
@@ -527,42 +600,16 @@ export default function App() {
             </p>
           </section>
 
-          <section className="composition-card">
-            <div className="aside-heading">
-              <div>
-                <span className="section-kicker">YOUR LIBRARY</span>
-                <h3>Recent compositions</h3>
-              </div>
-              <span className="library-count">{compositions.length}</span>
-            </div>
-            {compositions.length === 0 ? (
-              <div className="empty-library">
-                <span className="empty-note" aria-hidden="true">♫</span>
-                <p>Your first composition<br />is waiting to happen.</p>
-                <span>Save a session to keep it here.</span>
-              </div>
-            ) : (
-              <ul className="composition-list">
-                {compositions.slice(0, 5).map((composition) => (
-                  <li key={composition.id}>
-                    <button
-                      className="composition-item"
-                      type="button"
-                      onClick={() => void replayNotes(composition.notes, composition.preset)}
-                    >
-                      <span className="composition-symbol" aria-hidden="true">♪</span>
-                      <span className="composition-info">
-                        <strong>{composition.title}</strong>
-                        <small>{PRESET_LABELS[composition.preset]} · {composition.notes.length} notes</small>
-                      </span>
-                      <span className="composition-play" aria-label="Replay composition">▶</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="privacy-note"><span aria-hidden="true">⌑</span> Saved locally on this device. Your text stays private.</p>
-          </section>
+          <CompositionStudio
+            compositions={compositions}
+            onPlay={(composition) => void replayNotes(composition.notes, composition.preset)}
+            onRename={renameComposition}
+            onDelete={deleteComposition}
+            onExportJson={(composition) => exportComposition(composition, "json")}
+            onExportMidi={(composition) => exportComposition(composition, "midi")}
+            onImport={importComposition}
+            onClear={clearLibrary}
+          />
         </aside>
       </section>
 
