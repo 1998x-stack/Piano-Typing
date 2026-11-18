@@ -33,7 +33,7 @@ export default function MusicSettings({ settings, onChange }: Props) {
         </label>
         <label>
           Scale
-          <select value={settings.scaleId}
+          <select aria-label="Scale" value={settings.scaleId}
             onChange={(event) => onChange({ scaleId: event.target.value as ScaleId })}>
             <option value="major-pentatonic">Major pentatonic</option>
             <option value="minor-pentatonic">Minor pentatonic</option>
@@ -45,7 +45,7 @@ export default function MusicSettings({ settings, onChange }: Props) {
         </label>
         <label>
           Root note
-          <select value={settings.rootMidi}
+          <select aria-label="Root note" value={settings.rootMidi}
             onChange={(event) => onChange({ rootMidi: Number(event.target.value) })}>
             {ROOTS.map(([midi, label]) =>
               <option key={midi} value={midi}>{label}</option>)}
