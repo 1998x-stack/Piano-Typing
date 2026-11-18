@@ -5,6 +5,7 @@ import AudioVisualizer from "./components/AudioVisualizer";
 import { mapKeyToMidi } from "./domain/music/mapping";
 import MusicSettings from "./components/MusicSettings";
 import CompositionStudio from "./components/CompositionStudio";
+import { PlaybackScheduler } from "./application/PlaybackScheduler";
 import { encodeMidi } from "./domain/export/midi";
 import { CompositionStore, exportCompositionJson, importCompositionJson } from "./infrastructure/storage/compositionStore";
 import { getPhraseAccent, getPhraseChord, getWordBoundaryBass } from "./domain/music/harmony";
@@ -81,6 +82,7 @@ export default function App() {
   const [notesCaptured, setNotesCaptured] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [isReplaying, setIsReplaying] = useState(false);
   const [notice, setNotice] = useState("");
   const [compositions, setCompositions] = useState<SavedComposition[]>([]);
 
@@ -89,6 +91,8 @@ export default function App() {
   const accumulatedPauseMsRef = useRef(0);
   const noteEventsRef = useRef<NoteEvent[]>([]);
   const phraseIndexRef = useRef(0);
+  const lastNoteAtRef = useRef<number | null>(null);
+  const playbackRef = useRef<PlaybackScheduler | null>(null);
   const limitNoticeShownRef = useRef(false);
 
   useEffect(() => {
@@ -119,7 +123,10 @@ export default function App() {
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [audioEngine]);
 
-  useEffect(() => () => audioEngine.dispose(), [audioEngine]);
+  useEffect(() => () => {
+    playbackRef.current?.stop();
+    audioEngine.dispose();
+  }, [audioEngine]);
 
   useEffect(() => {
     let active = true;
@@ -163,19 +170,25 @@ export default function App() {
     }
     setKeystrokes((count) => count + 1);
 
+    const atMs = Math.max(0, input.timestamp - startedAtRef.current - accumulatedPauseMsRef.current);
     const midi = mapKeyToMidi(input.code, input.key, settings);
     if (midi !== null) {
       setActiveCode(input.code);
+      const gapMs = lastNoteAtRef.current === null ? 180 : Math.max(0, input.timestamp - lastNoteAtRef.current);
+      lastNoteAtRef.current = input.timestamp;
+      // Accent is inferred from typing rhythm, not physical key pressure.
+      const velocity = Math.min(0.9, Math.max(0.48, 0.82 - gapMs / 1_200));
       if (noteEventsRef.current.length < MAX_SESSION_NOTES) {
         const note: NoteEvent = {
           id: createId(),
           code: input.code,
           midi,
-          atMs: Math.max(0, input.timestamp - startedAtRef.current),
-          durationMs: 520
+          atMs,
+          durationMs: 520,
+          velocity
         };
         noteEventsRef.current.push(note);
-        audioEngine.playNote({ midi, durationMs: note.durationMs });
+        audioEngine.playNote({ midi, durationMs: note.durationMs, velocity });
       } else if (!limitNoticeShownRef.current) {
         setNotice("This session reached the 2,000-note capture limit. You can still keep typing.");
         limitNoticeShownRef.current = true;
@@ -189,8 +202,9 @@ export default function App() {
           id: createId(),
           code: "Harmony",
           midi: bassMidi,
-          atMs: Math.max(0, input.timestamp - startedAtRef.current),
-          durationMs: 360
+          atMs,
+          durationMs: 360,
+          velocity: 0.3
         });
         audioEngine.playNote({ midi: bassMidi, velocity: 0.3, durationMs: 360 });
       }
@@ -200,7 +214,7 @@ export default function App() {
     if (accent !== null) {
       const chord = getPhraseChord(phraseIndexRef.current, settings.rootMidi);
       const chordDuration = accent === "full" ? 860 : 460;
-      const chordAtMs = Math.max(0, input.timestamp - startedAtRef.current);
+      const chordAtMs = atMs;
       chord.forEach((chordMidi, index) => {
         if (noteEventsRef.current.length >= MAX_SESSION_NOTES) return;
         noteEventsRef.current.push({
@@ -208,7 +222,8 @@ export default function App() {
           code: "Harmony",
           midi: chordMidi,
           atMs: chordAtMs + index * 9,
-          durationMs: chordDuration
+          durationMs: chordDuration,
+          velocity: 0.36
         });
       });
       setNotesCaptured(noteEventsRef.current.length);
@@ -252,15 +267,28 @@ export default function App() {
     }
     const ready = await enableSound();
     if (!ready) return;
-    audioEngine.setPreset(preset);
-    const firstAt = notes[0].atMs;
-    notes.forEach((note) => {
-      audioEngine.playNote(
-        { midi: note.midi, durationMs: note.durationMs },
-        Math.max(0, note.atMs - firstAt)
-      );
-    });
-    audioEngine.setPreset(settings.preset);
+    if (!playbackRef.current) {
+      playbackRef.current = new PlaybackScheduler((note, delayMs, sound) => {
+        audioEngine.playNote({
+          midi: note.midi, durationMs: note.durationMs,
+          velocity: note.velocity ?? 0.7, preset: sound
+        }, delayMs);
+      });
+    }
+    try {
+      playbackRef.current.start(notes, preset, () => setIsReplaying(false));
+      setIsReplaying(playbackRef.current.isPlaying);
+      setNotice("Replaying with bounded audio scheduling.");
+    } catch {
+      setNotice("Unable to replay this composition.");
+    }
+  }
+
+  function stopReplay(): void {
+    playbackRef.current?.stop();
+    audioEngine.stopAllVoices();
+    setIsReplaying(false);
+    setNotice("Replay stopped.");
   }
 
   async function refreshCompositions(): Promise<void> {
@@ -380,6 +408,8 @@ export default function App() {
     accumulatedPauseMsRef.current = 0;
     noteEventsRef.current = [];
     phraseIndexRef.current = 0;
+    lastNoteAtRef.current = null;
+    stopReplay();
     setActiveCode("");
     limitNoticeShownRef.current = false;
     setPaused(false);
@@ -548,9 +578,13 @@ export default function App() {
             </button>
             <button className="text-button" type="button" onClick={clearSession}>Clear session</button>
             <span className="action-spacer" />
-            <button className="secondary-button" type="button" onClick={() => void replayNotes(noteEventsRef.current)}>
-              <span aria-hidden="true">↻</span> Replay
-            </button>
+            {isReplaying ? (
+              <button className="secondary-button" type="button" onClick={stopReplay}>Stop replay</button>
+            ) : (
+              <button className="secondary-button" type="button" onClick={() => void replayNotes(noteEventsRef.current)}>
+                <span aria-hidden="true">↻</span> Replay
+              </button>
+            )}
             <button
               className="secondary-button save-button"
               type="button"
