@@ -4,11 +4,11 @@ Status meanings: **PASS** verified by a recorded run; **NOT RUN** no evidence; *
 
 | Gate | Current evidence | Status |
 |---|---|---|
-| Node.js 22 deterministic installation | Committed package-lock.json + npm ci in CI | Verify latest CI |
-| TypeScript strict check | GitHub Actions CI | Verify latest CI |
-| Domain and component regression | Vitest | Verify latest CI |
-| Chromium typing, IME, custom mapping, composition migration | Playwright | Verify latest CI |
-| Browser production bundle | Vite build in CI | Verify latest CI |
+| Node.js 22 deterministic installation | Committed package-lock.json + npm ci — run 44236304259 | PASS |
+| TypeScript strict check | Run 44236304259 | PASS |
+| Domain and component regression | Run 44236304259: 56/56 tests | PASS |
+| Chromium typing, IME, custom mapping, MIDI, and composition migration | Run 44236304259: 9/9 browser tests | PASS |
+| Browser production bundle | Run 44236304259 | PASS |
 | Physical audible latency P50/P95 | Physical two-channel instrumentation required | NOT RUN |
 | 10-minute real-device soak | Physical reference device required | NOT RUN |
 | Non-QWERTY physical layout/IME matrix | Physical keyboard/software layout matrix | NOT RUN |
