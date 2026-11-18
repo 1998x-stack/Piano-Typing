@@ -54,3 +54,28 @@ test("mute control does not disable typing", async ({ page }) => {
   await input.pressSequentially("still works");
   await expect(page.getByTestId("keystroke-count")).toHaveText("11");
 });
+
+
+test("supports character layout and custom scale controls", async ({ page }) => {
+  await page.getByLabel("Keyboard mapping").selectOption("character");
+  await page.getByLabel("Scale", { exact: true }).selectOption("custom");
+  await page.getByLabel("Scale intervals (semitones)").fill("0, 3, 7");
+  await page.getByRole("button", { name: "Apply scale" }).click();
+  await page.getByLabel("Root note").selectOption("65");
+  const input = page.getByLabel("Type here");
+  await input.pressSequentially("az");
+  await expect(page.getByTestId("notes-count")).toHaveText("2");
+  await page.reload();
+  await expect(page.getByLabel("Keyboard mapping")).toHaveValue("character");
+  await expect(page.getByLabel("Scale", { exact: true })).toHaveValue("custom");
+  await expect(page.getByLabel("Root note")).toHaveValue("65");
+});
+
+test("commits Chinese IME characters once without interim synthetic notes", async ({ page }) => {
+  const input = page.getByLabel("Type here");
+  await input.dispatchEvent("compositionstart", { data: "" });
+  await input.dispatchEvent("keydown", { key: "z", code: "KeyZ", isComposing: true });
+  await expect(page.getByTestId("notes-count")).toHaveText("0");
+  await input.dispatchEvent("compositionend", { data: "中文" });
+  await expect(page.getByTestId("notes-count")).toHaveText("2");
+});
