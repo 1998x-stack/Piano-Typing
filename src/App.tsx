@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import TypingSurface from "./components/TypingSurface";
 import KeyboardVisualizer from "./components/KeyboardVisualizer";
 import AudioVisualizer from "./components/AudioVisualizer";
-import { getMidiForCode } from "./domain/music/pitch";
+import { mapKeyToMidi } from "./domain/music/mapping";
+import MusicSettings from "./components/MusicSettings";
 import { getPhraseAccent, getPhraseChord, getWordBoundaryBass } from "./domain/music/harmony";
 import { calculateTypingMetrics } from "./domain/typing/metrics";
 import type {
@@ -149,7 +150,7 @@ export default function App() {
     }
     setKeystrokes((count) => count + 1);
 
-    const midi = getMidiForCode(input.code);
+    const midi = mapKeyToMidi(input.code, input.key, settings);
     if (midi !== null) {
       setActiveCode(input.code);
       if (noteEventsRef.current.length < MAX_SESSION_NOTES) {
@@ -169,7 +170,7 @@ export default function App() {
     }
 
     if (input.key === " ") {
-      const bassMidi = getWordBoundaryBass(phraseIndexRef.current);
+      const bassMidi = getWordBoundaryBass(phraseIndexRef.current, settings.rootMidi);
       if (noteEventsRef.current.length < MAX_SESSION_NOTES) {
         noteEventsRef.current.push({
           id: createId(),
@@ -184,7 +185,7 @@ export default function App() {
 
     const accent = getPhraseAccent(input.key);
     if (accent !== null) {
-      const chord = getPhraseChord(phraseIndexRef.current);
+      const chord = getPhraseChord(phraseIndexRef.current, settings.rootMidi);
       const chordDuration = accent === "full" ? 860 : 460;
       const chordAtMs = Math.max(0, input.timestamp - startedAtRef.current);
       chord.forEach((chordMidi, index) => {
@@ -456,6 +457,8 @@ export default function App() {
           </div>
 
           {audioStatus === "ready" && <AudioVisualizer engine={audioEngine} reducedMotion={settings.reducedMotion} />}
+
+          <MusicSettings settings={settings} onChange={updateSettings} />
 
           <div className="action-row">
             <button className="primary-button" type="button" onClick={() => void enableSound()}>

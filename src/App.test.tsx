@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 
@@ -58,6 +58,25 @@ describe("Piano Typing application", () => {
     await user.click(screen.getByRole("button", { name: "Resume session" }));
     expect(screen.getByLabelText("Type here")).toBeEnabled();
     expect(screen.getByTestId("keystroke-count")).toHaveTextContent("1");
+  });
+
+  it("does not play interim IME keydown and emits notes for committed text", () => {
+    render(<App />);
+    const input = screen.getByLabelText("Type here");
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: "z", code: "KeyZ" });
+    expect(screen.getByTestId("notes-count")).toHaveTextContent("0");
+    fireEvent.compositionEnd(input, { data: "中文" });
+    expect(screen.getByTestId("notes-count")).toHaveTextContent("2");
+  });
+
+  it("supports switching to character-based key mapping", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.selectOptions(screen.getByLabelText("Keyboard mapping"), "character");
+    expect(screen.getByLabelText("Keyboard mapping")).toHaveValue("character");
+    await user.type(screen.getByLabelText("Type here"), "a");
+    expect(screen.getByTestId("notes-count")).toHaveTextContent("1");
   });
 
   it("toggles mute without disabling the typing surface", async () => {

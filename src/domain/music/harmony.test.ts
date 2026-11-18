@@ -23,6 +23,8 @@ describe("phrase harmony", () => {
     expect(getPhraseAccent(".")).toBe("full");
     expect(getPhraseAccent("Enter")).toBe("full");
     expect(getPhraseAccent(",")).toBe("soft");
+    expect(getPhraseAccent("。")).toBe("full");
+    expect(getPhraseAccent("，")).toBe("soft");
     expect(getPhraseAccent("a")).toBeNull();
   });
 });
