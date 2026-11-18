@@ -1,8 +1,8 @@
 # System Architecture
 
 **Status:** Proposed baseline  
-**Version:** 1.0  
-**Date:** 2026-11-17
+**Version:** 2.0  
+**Date:** 2026-11-18
 
 ## 1. Architectural goals
 
@@ -65,7 +65,9 @@ Build-time dependencies:
 Owns layout, accessible controls, visual feedback, and user intent. React components may display state, but MUST NOT own oscillator nodes or schedule audio directly.
 
 Current components:
-- App: application shell, mode switching, sound controls, metrics, and composition list.
+- App: application shell, user controls and composition use-case orchestration.
+- MusicSettings: mapping, scale, transposition and reduced-motion controls.
+- CompositionStudio: saved works, renaming, deletion, import and export.
 - TypingSurface: focused text input and keyboard event normalization.
 - KeyboardVisualizer: collapsible QWERTY physical-key feedback.
 - AudioVisualizer: canvas waveform driven by AudioEngine analyser samples.
@@ -87,12 +89,12 @@ Application services orchestrate domain services and infrastructure adapters. Th
 ### Domain layer
 
 Pure TypeScript logic with no React, DOM, or Web Audio imports:
-- KeyboardCodeMapper: physical key code to stable scale degree and MIDI pitch.
+- mapping.ts: physical KeyboardEvent.code versus character mapping, built-in/custom scale selection, key-to-MIDI pitch.
 - Scale and tuning definitions.
 - Phrase segmentation.
 - Typing metrics.
 - Session and composition types.
-- Session validation and bounded history rules.
+- Session validation, MIDI encoder and portable composition schema contracts.
 
 Domain logic must be deterministic and unit-testable.
 
@@ -100,7 +102,9 @@ Domain logic must be deterministic and unit-testable.
 
 Browser-specific adapters:
 - AudioEngine: AudioContext lifecycle, synthesis, voice management, master gain, and scheduling.
-- SessionRepository: versioned local persistence.
+- CompositionStore: versioned IndexedDB composition persistence and transactional migration from legacy localStorage.
+- PlaybackScheduler: bounded 160ms note lookahead; avoids scheduling every oscillator up front.
+- SchedulingTelemetry: bounded JS note scheduling overhead samples (not physical audio latency).
 - SettingsRepository: validated settings persistence.
 - BrowserCapabilities: feature detection and graceful fallbacks.
 
@@ -110,13 +114,13 @@ The AudioEngine is exposed through a narrow interface. The UI must not receive r
 
 1. The user focuses the dedicated typing surface.
 2. A keydown event is inspected by the input adapter.
-3. Modifier-only, repeated, composing, and non-printable events are ignored by the note path.
-4. A printable physical key code is passed to KeyboardCodeMapper.
-5. The application emits a small immutable note event containing code, MIDI pitch, velocity proxy, and monotonic session offset. Raw document text is not included.
+3. Modifier-only and repeated keys are ignored. IME intermediary keydowns are suppressed; committed Unicode characters are processed once in compositionend.
+4. An accepted physical code or committed Unicode character is mapped by mapKeyToMidi using the selected mapping mode and scale.
+5. The application emits a small note event containing code, MIDI pitch, rhythm-derived velocity proxy, and monotonic session offset excluding pause time. Raw document text is not included.
 6. The AudioEngine schedules the note against AudioContext.currentTime and exposes analyser samples through a narrow readWaveform method for the live visualizer. Word boundaries may additionally schedule a low bass pulse, while phrase-ending punctuation schedules a chord accent from a deterministic progression.
 7. A compact visual event is published to the UI. Rendering is throttled or batched; it is never part of the audio scheduling path.
 8. Typing metrics consume committed text changes separately from note events.
-9. When the user explicitly saves a composition, the note-event sequence and user-provided title are persisted. Raw typed text remains excluded unless the user explicitly opts in.
+9. When the user explicitly saves a composition, validated v2 note metadata is persisted in IndexedDB; a legacy localStorage record is migrated only after a committed transaction. Raw typed text remains excluded unless the user explicitly opts in.
 
 ## 6. Module boundaries
 

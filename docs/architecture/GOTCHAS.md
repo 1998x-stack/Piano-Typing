@@ -15,7 +15,7 @@ This file is a durable handoff log for verified issues and important implementat
 9. Bluetooth audio output may exceed the latency budget even when application scheduling is efficient.
 10. Generated or bundled instrument samples require explicit redistribution rights. The first implementation should use synthesis until licensing is reviewed.
 11. Keep the audio compressor as a local graph node; do not retain unused AudioNode fields merely to document the graph. The strict TypeScript configuration treats unused private fields as build failures.
-12. The initial repository intentionally has no committed package lock yet. Before release, generate and commit package-lock.json, then switch CI from npm install to npm ci.
+12. A package lock was initially absent. It was resolved and committed by a one-time GitHub Actions job on 2026-11-18; CI now uses npm ci. Never handcraft lockfile hashes.
 13. Vitest does not expose afterEach globally by default in this configuration. Import afterEach and call Testing Library cleanup explicitly, otherwise mounted React trees leak between tests and produce false duplicate-element failures.
 14. jsdom/user-event may not emit the same physical KeyboardEvent.code as a real keyboard for punctuation. Test physical-code mapping directly in domain tests; use browser E2E for end-to-end punctuation behavior.
 15. GitHub ubuntu-latest moved to Ubuntu 26.04 while the pinned Playwright 1.52 browser installer does not support that image. Pin browser E2E to ubuntu-24.04 until the Playwright version is deliberately upgraded and verified.
@@ -25,6 +25,11 @@ This file is a durable handoff log for verified issues and important implementat
 19. Session duration must exclude paused intervals. Use a monotonic clock and accumulate pause duration; wall-clock time between session start and save is not active play time.
 20. Replaying a saved composition must use its stored sound preset for the scheduled events, then restore the user's current preset for subsequent live typing.
 21. Keep the AnalyserNode inside AudioEngine. UI components should request samples into a reusable Uint8Array rather than receive or manipulate AudioNodes.
+22. In native IMEs, keydown events during composition are not reliable text events. Suppress interim keydowns and map final Unicode code points on compositionend. Physical browser/IME parity is not established by synthetic CI.
+23. Directly scheduling every event in a multi-minute composition creates too many oscillator nodes and can break polyphony. Use a bounded lookahead scheduler, preserve original preset per event, and provide a stop control.
+24. IndexedDB schema migrations must commit before deleting legacy localStorage data; allowlisted normalization must drop unknown properties, particularly raw source text.
+25. Synthetic typing velocity is an accent proxy from timing, not measured mechanical key force. Different audio devices have radically different audible latency.
+26. Code coverage, fake AudioContext tests and browser UI E2E do not establish physical key-contact-to-sound latency or acoustic clipping. Those release gates remain NOT RUN.
 
 ## Verification log
 

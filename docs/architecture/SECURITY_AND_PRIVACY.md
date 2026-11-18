@@ -6,7 +6,7 @@ Piano Typing has no account or backend in the first release. It MUST:
 - Listen only on the focused in-app typing surface.
 - Never install a system-wide keyboard listener.
 - Never capture keystrokes from other tabs or applications.
-- Avoid storing raw text by default.
+- Avoid storing raw text by default, including on JSON/MIDI export and legacy migrations.
 - Avoid sending text or note events to third parties.
 - Avoid microphone, camera, clipboard-read, or notification permissions.
 - Provide a clear way to clear local data.
@@ -23,7 +23,7 @@ Piano Typing has no account or backend in the first release. It MUST:
 
 ## 3. Storage safety
 
-Persisted JSON is untrusted input. Validate shape, bounds, enum values, and schema version before using it. A corrupted record must not crash app startup.
+Persisted JSON and imported composition files are untrusted input. Validate shape, bounds, enum values, size and schema version before using it. Copy allowlisted fields into schema v2 records to drop unknown payloads. IndexedDB writes/migrations must commit before clearing legacy data. A corrupted record must not crash app startup.
 
 ## 4. Accessibility and user control
 

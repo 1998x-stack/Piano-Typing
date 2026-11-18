@@ -11,11 +11,13 @@ Pure domain logic:
 - Typing accuracy and WPM definitions.
 - Session event ordering and bounds.
 - AudioEngine initialization, analyser samples, chord scheduling, mute, voice cap, and long replay offsets with a fake AudioContext.
-- Persistence validation, retention ordering, and migration.
+- Persistence validation, JSON schema v2, retention, legacy migration, portable MIDI encoding and custom scale parsing.
+- PlaybackScheduler lookahead, cancellation and order, and bounded scheduling diagnostics.
 
 ### Component tests
 
-- TypingSurface ignores repeated and composing key events.
+- TypingSurface ignores repeated and composing key events; compositionend emits one event per committed Unicode code point.
+- CompositionStudio rename/save/delete controls and scale configuration.
 - Input remains editable when audio is unavailable.
 - Mute, volume, mode, and clear controls expose correct accessible names.
 - Audio failures are shown without crashing the app.
@@ -32,7 +34,8 @@ Pure domain logic:
 
 - Application loads.
 - User explicitly enables sound.
-- User can type, switch modes, mute, change preset, and clear.
+- User can type, switch modes, mute, change preset, set character mapping and custom scales.
+- User can save, rename, export MIDI, delete, reload and migrate validated legacy records.
 - No keyboard capture occurs outside the focused surface.
 - Core typing remains usable with audio initialization forced to fail.
 
@@ -54,4 +57,4 @@ Every pull request must pass:
 - unit and component tests,
 - production build.
 
-Playwright Chromium E2E is part of CI and is required for the MVP release. Physical audio output, real device latency, and long-duration soak testing remain manual acceptance checks.
+Playwright Chromium E2E is part of CI and is required for the MVP release. The physical/character mapping tests use synthetic browser events; these do not replace real hardware layout/IME acceptance. Physical audio output, real device latency, and long-duration soak testing remain manual acceptance checks.
