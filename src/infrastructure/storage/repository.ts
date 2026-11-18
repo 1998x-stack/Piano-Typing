@@ -1,3 +1,4 @@
+import { getPhysicalKeyIndex } from "../../domain/music/pitch";
 import type { AppSettings, SavedComposition, SoundPreset, NoteEvent, ScaleId, MappingMode } from "../../domain/types";
 
 export const SETTINGS_KEY = "piano-typing.settings.v1";
@@ -82,7 +83,9 @@ export function writeSettings(settings: AppSettings, storage: StorageLike = wind
 export function isNoteEvent(value: unknown): value is NoteEvent {
   if (!isRecord(value)) return false;
   return typeof value.id === "string"
+    && value.id.length > 0 && value.id.length <= 120
     && typeof value.code === "string"
+    && (value.code === "IME" || value.code === "Harmony" || getPhysicalKeyIndex(value.code) !== null)
     && typeof value.midi === "number"
     && Number.isInteger(value.midi)
     && value.midi >= 36
@@ -90,10 +93,13 @@ export function isNoteEvent(value: unknown): value is NoteEvent {
     && typeof value.atMs === "number"
     && Number.isFinite(value.atMs)
     && value.atMs >= 0
+    && value.atMs <= 3_600_000
     && typeof value.durationMs === "number"
     && Number.isFinite(value.durationMs)
     && value.durationMs >= 0
-    && value.durationMs <= 3_600_000;
+    && value.durationMs <= 10_000
+    && (value.velocity === undefined || (typeof value.velocity === "number"
+      && Number.isFinite(value.velocity) && value.velocity >= 0 && value.velocity <= 1));
 }
 
 export function isComposition(value: unknown): value is SavedComposition {
