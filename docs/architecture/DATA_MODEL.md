@@ -23,11 +23,11 @@ Settings are normalized at read time; corrupt JSON and unknown values revert to 
 - id: local unique identifier.
 - code: physical KeyboardEvent.code; \`IME\` for committed IME characters; \`Harmony\` for generated bass/chord notes.
 - midi: integer [36,96].
-- atMs: monotonic session offset, excluding pause time.
-- durationMs: bounded non-negative duration.
+- atMs: finite monotonic session offset in [0, 3,600,000] milliseconds, excluding pause time.
+- durationMs: bounded non-negative duration, ≤10,000 ms for imported note events.
 - velocity: optional number [0,1], a musical accent **proxy inferred from timing**, not finger pressure.
 
-No original \`key\` or typed text is serialized. A sequence of physical codes and timings is still behavioral metadata; the interface discloses that fact.
+Only supported physical KeyboardEvent.code values or reserved IME/Harmony markers are accepted. No original \`key\` or typed text is serialized. A sequence of physical codes and timings is still behavioral metadata; the interface discloses that fact.
 
 ## 4. SavedComposition
 
