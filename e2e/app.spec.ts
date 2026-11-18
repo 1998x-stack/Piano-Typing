@@ -87,7 +87,11 @@ test("commits Chinese IME characters once without interim synthetic notes", asyn
   await input.dispatchEvent("compositionstart", { data: "" });
   await input.dispatchEvent("keydown", { key: "z", code: "KeyZ", isComposing: true });
   await expect(page.getByTestId("notes-count")).toHaveText("0");
-  await input.dispatchEvent("compositionend", { data: "中文" });
+  await input.evaluate((element) => {
+    element.dispatchEvent(new CompositionEvent("compositionend", {
+      bubbles: true, cancelable: true, data: "中文"
+    }));
+  });
   await expect(page.getByTestId("notes-count")).toHaveText("2");
 });
 
