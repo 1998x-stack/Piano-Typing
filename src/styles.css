@@ -633,3 +633,31 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .music-settings { padding: 13px; }
   .music-settings-grid { grid-template-columns: 1fr; }
 }
+
+
+.composition-entry { padding: 10px 0 12px; }
+.composition-title-row { display: flex; align-items: center; gap: 10px; }
+.composition-title-row .composition-info { min-width: 0; flex: 1; }
+.composition-actions { display: flex; flex-wrap: wrap; gap: 5px; padding: 9px 0 0 22px; }
+.composition-actions button, .composition-rename button, .composition-confirm button,
+.library-tools button, .import-label {
+  padding: 6px 8px; border: 1px solid #d9ded6; border-radius: 5px;
+  background: rgba(255,254,250,0.8); color: #5d7569; font-size: 9px;
+}
+.composition-actions button:hover, .library-tools button:hover { border-color: #94b09c; }
+.composition-actions button:last-child, .library-clear { color: #9b6d61; }
+.composition-rename { display: flex; flex-wrap: wrap; gap: 4px; }
+.composition-rename input {
+  flex-basis: 100%; min-width: 0; padding: 6px 7px; border: 1px solid #cbd9cb;
+  border-radius: 5px; background: #fffefa; font-size: 11px;
+}
+.composition-confirm, .clear-confirm {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 9px; margin-top: 7px; border: 1px solid #ead4cd;
+  border-radius: 7px; color: #945e4d; background: #fdf5ef; font-size: 10px;
+}
+.library-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 9px; padding-top: 12px; border-top: 1px solid #ece8df; }
+.import-label { position: relative; display: inline-block; overflow: hidden; cursor: pointer; }
+.import-label input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.clear-confirm { width: 100%; }
+.composition-list { max-height: 520px; overflow-y: auto; }
