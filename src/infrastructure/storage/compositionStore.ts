@@ -27,7 +27,9 @@ export function normalizeComposition(value: unknown): SavedComposition | null {
     preset: record.preset,
     notes: record.notes.map((note) => ({
       id: note.id, code: note.code, midi: note.midi,
-      atMs: note.atMs, durationMs: note.durationMs
+      atMs: note.atMs, durationMs: note.durationMs,
+      ...(typeof note.velocity === "number" && Number.isFinite(note.velocity)
+        ? { velocity: Math.min(1, Math.max(0, note.velocity)) } : {})
     })),
     mappingMode: record.mappingMode === "character" ? "character" : "physical",
     scaleId: record.scaleId ?? "major-pentatonic",

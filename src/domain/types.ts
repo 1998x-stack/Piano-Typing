@@ -32,6 +32,7 @@ export interface NoteEvent {
   midi: number;
   atMs: number;
   durationMs: number;
+  velocity?: number;
 }
 
 export interface SavedComposition {

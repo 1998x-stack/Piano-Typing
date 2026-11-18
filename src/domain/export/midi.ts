@@ -33,7 +33,9 @@ export function encodeMidi(notes: readonly NoteEvent[]): Uint8Array {
     }
     const start = Math.round(note.atMs * TICKS_PER_MS);
     const end = start + Math.max(1, Math.round(note.durationMs * TICKS_PER_MS));
-    events.push({ tick: start, order: 1, bytes: [0x90, note.midi, 88] });
+    const velocity = typeof note.velocity === "number" && Number.isFinite(note.velocity)
+      ? Math.min(127, Math.max(1, Math.round(note.velocity * 127))) : 88;
+    events.push({ tick: start, order: 1, bytes: [0x90, note.midi, velocity] });
     events.push({ tick: end, order: 0, bytes: [0x80, note.midi, 0] });
   }
   events.sort((a, b) => a.tick - b.tick || a.order - b.order);

@@ -32,6 +32,12 @@ class FakeAnalyserNode extends FakeNode {
   getByteTimeDomainData(array: Uint8Array): void { array.fill(128); }
 }
 
+class FakeFilterNode extends FakeNode {
+  type: BiquadFilterType = "lowpass";
+  frequency = new FakeAudioParam();
+  Q = new FakeAudioParam();
+}
+
 class FakeOscillatorNode extends FakeNode {
   static startTimes: number[] = [];
   frequency = new FakeAudioParam();
@@ -52,6 +58,10 @@ class FakeAudioContext {
 
   createDynamicsCompressor(): DynamicsCompressorNode {
     return new FakeCompressorNode() as unknown as DynamicsCompressorNode;
+  }
+
+  createBiquadFilter(): BiquadFilterNode {
+    return new FakeFilterNode() as unknown as BiquadFilterNode;
   }
 
   createAnalyser(): AnalyserNode {
@@ -125,6 +135,15 @@ describe("AudioEngine", () => {
     engine.playChord([48, 55, 60, 64], 800);
 
     expect(engine.getActiveVoiceCount()).toBe(4);
+    engine.dispose();
+  });
+
+  it("supports overriding the live preset for composition replay", async () => {
+    const engine = new AudioEngine();
+    await engine.initializeFromUserGesture();
+    expect(engine.playNote({ midi: 60, preset: "soft-electric", velocity: 0.4 })).toBe(true);
+    expect(engine.getActiveVoiceCount()).toBe(1);
+    engine.stopAllVoices();
     engine.dispose();
   });
 

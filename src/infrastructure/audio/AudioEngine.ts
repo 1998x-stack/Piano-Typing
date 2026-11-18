@@ -9,6 +9,7 @@ interface PresetConfig {
   partials: number[];
   waveform: OscillatorType;
   durationMs: number;
+  filterHz: number;
 }
 
 interface ActiveVoice {
@@ -23,6 +24,7 @@ export interface PlayNoteOptions {
   midi: number;
   velocity?: number;
   durationMs?: number;
+  preset?: SoundPreset;
 }
 
 const PRESETS: Record<SoundPreset, PresetConfig> = {
@@ -33,7 +35,8 @@ const PRESETS: Record<SoundPreset, PresetConfig> = {
     peak: 0.16,
     partials: [1, 0.22, 0.055],
     waveform: "sine",
-    durationMs: 520
+    durationMs: 520,
+    filterHz: 3_600
   },
   "soft-electric": {
     attackSeconds: 0.018,
@@ -42,7 +45,8 @@ const PRESETS: Record<SoundPreset, PresetConfig> = {
     peak: 0.13,
     partials: [1, 0.32, 0.11],
     waveform: "triangle",
-    durationMs: 680
+    durationMs: 680,
+    filterHz: 4_400
   },
   "ambient-pluck": {
     attackSeconds: 0.004,
@@ -51,7 +55,8 @@ const PRESETS: Record<SoundPreset, PresetConfig> = {
     peak: 0.14,
     partials: [1, 0.14, 0.025],
     waveform: "sine",
-    durationMs: 420
+    durationMs: 420,
+    filterHz: 5_200
   }
 };
 
@@ -116,7 +121,7 @@ export class AudioEngine {
     const masterGain = this.masterGain;
     if (!context || !masterGain || context.state !== "running" || this.muted) return false;
 
-    const preset = PRESETS[this.preset];
+    const preset = PRESETS[options.preset ?? this.preset];
     const midi = clamp(options.midi, 36, 96);
     const velocity = clamp(options.velocity ?? 0.82, 0.05, 1);
     const durationMs = clamp(options.durationMs ?? preset.durationMs, 120, 1_800);
@@ -124,13 +129,18 @@ export class AudioEngine {
     const durationSeconds = durationMs / 1_000;
     const stopAt = startAt + durationSeconds;
 
-    this.pruneVoices(startAt);
+    this.pruneVoices(context.currentTime);
     if (this.voices.length >= MAX_VOICES) {
       const oldestVoice = this.voices.shift();
-      this.releaseVoice(oldestVoice, startAt);
+      this.releaseVoice(oldestVoice, context.currentTime);
     }
 
     const envelope = context.createGain();
+    const filter = context.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(preset.filterHz * (0.6 + velocity * 0.4), startAt);
+    filter.Q.setValueAtTime(0.65, startAt);
+    filter.connect(envelope);
     const peak = preset.peak * velocity;
     const decayAt = startAt + Math.min(preset.decaySeconds, durationSeconds * 0.55);
     envelope.gain.setValueAtTime(0.0001, startAt);
@@ -157,9 +167,9 @@ export class AudioEngine {
       const partialGain = context.createGain();
       oscillator.type = preset.waveform;
       oscillator.frequency.setValueAtTime(frequency * (index + 1), startAt);
-      partialGain.gain.setValueAtTime(partialLevel, startAt);
+      partialGain.gain.setValueAtTime(partialLevel * Math.pow(0.65 + velocity * 0.35, index), startAt);
       oscillator.connect(partialGain);
-      partialGain.connect(envelope);
+      partialGain.connect(filter);
       oscillator.start(startAt);
       oscillator.stop(stopAt + 0.025);
       oscillator.onended = () => {
@@ -167,6 +177,7 @@ export class AudioEngine {
         partialGain.disconnect();
         if (index === preset.partials.length - 1) {
           envelope.disconnect();
+          filter.disconnect();
           this.voices = this.voices.filter((item) => item !== voice);
         }
       };
@@ -212,6 +223,10 @@ export class AudioEngine {
 
   getActiveVoiceCount(): number {
     return this.voices.length;
+  }
+
+  stopAllVoices(): void {
+    if (this.context) this.releaseAllVoices(this.context.currentTime);
   }
 
   suspend(): void {
