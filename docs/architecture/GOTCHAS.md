@@ -30,6 +30,8 @@ This file is a durable handoff log for verified issues and important implementat
 24. IndexedDB schema migrations must commit before deleting legacy localStorage data; allowlisted normalization must drop unknown properties, particularly raw source text.
 25. Synthetic typing velocity is an accent proxy from timing, not measured mechanical key force. Different audio devices have radically different audible latency.
 26. Code coverage, fake AudioContext tests and browser UI E2E do not establish physical key-contact-to-sound latency or acoustic clipping. Those release gates remain NOT RUN.
+27. Playwright locator exact accessible names should not rely on nested labels whose select option text can be folded into the accessible name. Give key select controls explicit aria-label attributes.
+28. Playwright dispatchEvent with a generic event initializer does not necessarily create a native CompositionEvent with a data property; use new CompositionEvent in page.evaluate for IME E2E tests.
 
 ## Verification log
 
