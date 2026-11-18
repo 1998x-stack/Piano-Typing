@@ -6,6 +6,8 @@ import { mapKeyToMidi } from "./domain/music/mapping";
 import MusicSettings from "./components/MusicSettings";
 import CompositionStudio from "./components/CompositionStudio";
 import { PlaybackScheduler } from "./application/PlaybackScheduler";
+import { SchedulingTelemetry } from "./application/SchedulingTelemetry";
+import type { TimingSummary } from "./application/SchedulingTelemetry";
 import { encodeMidi } from "./domain/export/midi";
 import { CompositionStore, exportCompositionJson, importCompositionJson } from "./infrastructure/storage/compositionStore";
 import { getPhraseAccent, getPhraseChord, getWordBoundaryBass } from "./domain/music/harmony";
@@ -83,6 +85,7 @@ export default function App() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [paused, setPaused] = useState(false);
   const [isReplaying, setIsReplaying] = useState(false);
+  const [timing, setTiming] = useState<TimingSummary | null>(null);
   const [notice, setNotice] = useState("");
   const [compositions, setCompositions] = useState<SavedComposition[]>([]);
 
@@ -93,6 +96,7 @@ export default function App() {
   const phraseIndexRef = useRef(0);
   const lastNoteAtRef = useRef<number | null>(null);
   const playbackRef = useRef<PlaybackScheduler | null>(null);
+  const telemetryRef = useRef<SchedulingTelemetry>(new SchedulingTelemetry());
   const limitNoticeShownRef = useRef(false);
 
   useEffect(() => {
@@ -163,6 +167,7 @@ export default function App() {
 
   function handleKeyInput(input: KeyInput): void {
     if (paused) return;
+    const jsStart = performance.now();
     if (startedAtRef.current === null) {
       startedAtRef.current = input.timestamp;
       pausedAtRef.current = null;
@@ -232,6 +237,8 @@ export default function App() {
     } else {
       setNotesCaptured(noteEventsRef.current.length);
     }
+    telemetryRef.current.record(performance.now() - jsStart);
+    if (telemetryRef.current.count % 16 === 0) setTiming(telemetryRef.current.snapshot());
   }
   function handleTextChange(nextText: string): void {
     setText(nextText);
@@ -409,6 +416,8 @@ export default function App() {
     noteEventsRef.current = [];
     phraseIndexRef.current = 0;
     lastNoteAtRef.current = null;
+    telemetryRef.current.reset();
+    setTiming(null);
     stopReplay();
     setActiveCode("");
     limitNoticeShownRef.current = false;
@@ -627,6 +636,11 @@ export default function App() {
                 <span>PLAY TIME</span>
               </div>
             </div>
+            {timing && (
+              <p className="metric-timing" title="JavaScript processing and note scheduling only; does not include audio output latency.">
+                JS schedule P50 {timing.p50Ms.toFixed(2)} ms · P95 {timing.p95Ms.toFixed(2)} ms ({timing.samples} samples)
+              </p>
+            )}
             <p className="metric-footnote">
               {mode === "free-play"
                 ? "Accuracy is measured only in Typing Flow, where a target passage exists."
