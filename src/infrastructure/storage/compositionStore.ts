@@ -1,4 +1,4 @@
-import type { SavedComposition } from "../../domain/types";
+import type { SavedComposition, ScaleId } from "../../domain/types";
 import { COMPOSITIONS_KEY, MAX_COMPOSITIONS, isComposition, readCompositions, saveComposition } from "./repository";
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -6,6 +6,7 @@ const DATABASE_NAME = "piano-typing";
 const OBJECT_STORE = "compositions";
 const DB_VERSION = 2;
 const MAX_IMPORT_BYTES = 1_000_000;
+const SCALE_IDS: ScaleId[] = ["major-pentatonic", "minor-pentatonic", "major", "natural-minor", "blues", "custom"];
 
 function storageOrNull(): StorageLike | null {
   try { return typeof window !== "undefined" ? window.localStorage : null; }
@@ -32,9 +33,14 @@ export function normalizeComposition(value: unknown): SavedComposition | null {
         ? { velocity: Math.min(1, Math.max(0, note.velocity)) } : {})
     })),
     mappingMode: record.mappingMode === "character" ? "character" : "physical",
-    scaleId: record.scaleId ?? "major-pentatonic",
-    rootMidi: Number.isInteger(record.rootMidi) ? record.rootMidi : 60,
-    customScale: Array.isArray(record.customScale) ? record.customScale.slice(0, 12) : [0,2,4,7,9]
+    scaleId: SCALE_IDS.includes(record.scaleId as ScaleId) ? record.scaleId : "major-pentatonic",
+    rootMidi: Number.isInteger(record.rootMidi) && record.rootMidi! >= 48 && record.rootMidi! <= 72
+      ? record.rootMidi : 60,
+    customScale: Array.isArray(record.customScale) && record.customScale.length >= 2
+      && record.customScale.length <= 12 && record.customScale[0] === 0
+      && record.customScale.every((x,i) => Number.isInteger(x)
+        && x >= 0 && x <= 11 && (i === 0 || x > record.customScale![i - 1]))
+        ? [...record.customScale] : [0,2,4,7,9]
   };
 }
 
