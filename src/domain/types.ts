@@ -1,5 +1,9 @@
 export type AppMode = "free-play" | "typing-flow";
 
+export type MappingMode = "physical" | "character";
+
+export type ScaleId = "major-pentatonic" | "minor-pentatonic" | "major" | "natural-minor" | "blues" | "custom";
+
 export type SoundPreset = "felt-piano" | "soft-electric" | "ambient-pluck";
 
 export type AudioStatus = "idle" | "ready" | "suspended" | "unavailable" | "error";
@@ -10,6 +14,10 @@ export interface AppSettings {
   volume: number;
   muted: boolean;
   reducedMotion: boolean;
+  mappingMode: MappingMode;
+  scaleId: ScaleId;
+  rootMidi: number;
+  customScale: number[];
 }
 
 export interface KeyInput {
@@ -33,6 +41,11 @@ export interface SavedComposition {
   durationMs: number;
   preset: SoundPreset;
   notes: NoteEvent[];
+  schemaVersion?: 2;
+  mappingMode?: MappingMode;
+  scaleId?: ScaleId;
+  rootMidi?: number;
+  customScale?: number[];
 }
 
 export interface TypingMetrics {

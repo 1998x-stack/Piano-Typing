@@ -25,6 +25,10 @@ KEY_ROWS.forEach((row, rowIndex) => {
 ].forEach((code, index) => CODE_TO_INDEX.set(code, 26 + index));
 
 
+export function getPhysicalKeyIndex(code: string): number | null {
+  return CODE_TO_INDEX.get(code) ?? null;
+}
+
 export function getMidiForCode(code: string, baseMidi = 60): number | null {
   const index = CODE_TO_INDEX.get(code);
   if (index === undefined) return null;
