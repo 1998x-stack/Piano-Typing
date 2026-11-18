@@ -1,95 +1,64 @@
-# Data Model and Persistence
+# Data Model and Persistence — v2
 
-**Status:** Proposed baseline
+## 1. Data boundaries
 
-## 1. Principles
+**Local-first.** No account, server, telemetry upload or backend is required. Browser storage is untrusted and may fail or be evicted. Source text is ephemeral by default.
 
-- Local-first and privacy-preserving by default.
-- Version every persisted record.
-- Validate data at read boundaries.
-- Keep saved data bounded.
-- Never persist raw text merely because the user typed it.
-- Store composition events rather than a copy of the source document.
+## 2. AppSettings
 
-## 2. Domain types
-
-### AppSettings
-
-- schemaVersion: integer
+Stored under \`piano-typing.settings.v1\` in localStorage, with value validation and defaults:
 - mode: free-play | typing-flow
 - preset: felt-piano | soft-electric | ambient-pluck
-- volume: number in [0, 1]
-- muted: boolean
-- mapping: stable-pentatonic
-- reducedMotion: boolean
+- volume: [0,1]
+- muted, reducedMotion: booleans
+- mappingMode: physical | character
+- scaleId: major-pentatonic | minor-pentatonic | major | natural-minor | blues | custom
+- rootMidi: valid note between 48 and 72
+- customScale: ascending semitone offsets, beginning with 0 and ending at ≤11, 2–12 values
 
-### NoteEvent
+Settings are normalized at read time; corrupt JSON and unknown values revert to safe defaults.
 
-- id: stable unique identifier
-- code: physical KeyboardEvent.code for key-origin notes; the reserved value Harmony identifies word-boundary bass and phrase-chord accompaniment notes
-- midi: integer in [36, 96]
-- atMs: non-negative monotonic offset from session start
-- durationMs: bounded duration
-- velocity: normalized proxy, not physical key pressure
+## 3. NoteEvent
 
-The browser keyboard event model does not expose real mechanical key pressure. Velocity is a musical accent proxy derived from timing or a fixed default and must never be described as measured finger force.
+- id: local unique identifier.
+- code: physical KeyboardEvent.code; \`IME\` for committed IME characters; \`Harmony\` for generated bass/chord notes.
+- midi: integer [36,96].
+- atMs: monotonic session offset, excluding pause time.
+- durationMs: bounded non-negative duration.
+- velocity: optional number [0,1], a musical accent **proxy inferred from timing**, not finger pressure.
 
-### Composition
+No original \`key\` or typed text is serialized. A sequence of physical codes and timings is still behavioral metadata; the interface discloses that fact.
 
-- schemaVersion
-- id
-- title
-- createdAt: ISO timestamp
-- durationMs
-- preset
-- mapping
-- notes: bounded NoteEvent[]
-- sourceTextIncluded: false by default
+## 4. SavedComposition
 
-### SessionSummary
+Schema v2 fields:
+- schemaVersion: 2
+- id, title (1–100 chars), createdAt ISO time
+- durationMs, preset
+- mappingMode, scaleId, rootMidi, customScale
+- notes: bounded NoteEvent[], max 2,000
 
-- schemaVersion
-- id
-- startedAt
-- durationMs
-- mode
-- keystrokes
-- correctedCharacters
-- accuracy: nullable when no target text exists
-- grossWpm
-- notesPlayed
-- compositionId: optional
+Older v1 records without schemaVersion are accepted through the migration adapter and **normalized** to the v2 allowlist, which drops unknown fields such as sourceText. Future unknown schema versions are rejected, not overwritten.
 
-## 3. Storage layout
+## 5. Storage layout
 
-Small settings may use localStorage with a versioned key:
-- piano-typing.settings.v1
+- localStorage \`piano-typing.settings.v1\` for small settings.
+- IndexedDB \`piano-typing\` version 2, object store \`compositions\` keyed by \`id\`.
+- Legacy localStorage \`piano-typing.compositions.v1\` is read once and imported transactionally into IndexedDB. It is removed **only after the IDB transaction commits**.
+- If IndexedDB cannot be opened, a bounded localStorage repository remains available.
+- New saves are limited to the 20 most recent compositions; record size and import text are bounded.
+- Explicit rename, delete and clear commands are available.
 
-Composition history may begin in localStorage only with strict size limits. Before adding long sessions, move to IndexedDB:
-- piano-typing.compositions.v1
-- piano-typing.sessions.v1
+Transaction failure is recoverable; never clear legacy data before a successful migration.
 
-Repository interfaces should hide the backing store so localStorage can be replaced by IndexedDB without changing domain code.
+## 6. Portable formats
 
-## 4. Retention and limits
+- **JSON:** envelope \`format: PianoTypingComposition\`, \`schemaVersion: 2\`, \`composition\` allowlisted v2 record. Import validates type, schema, size and note data before a new local ID is assigned.
+- **MIDI:** Standard MIDI File format 0, one track at fixed 120 BPM / 480 PPQ, note-on/off and end-of-track. It contains only musical events. This is a transport format, not a byte-for-byte JSON backup.
 
-Initial limits:
-- 30 recent session summaries.
-- 20 saved compositions.
-- 2,000 note events per composition.
-- 100 characters for a composition title.
-- 1 MB maximum serialized record size.
+## 7. Retention, deletion, and limits
 
-When limits are reached, evict oldest history first. Never silently truncate the current in-memory composition; ask the user to save a shorter version or export it.
-
-## 5. Validation and migration
-
-- Validate schemaVersion before use.
-- Reject NaN, Infinity, negative timestamps, unknown presets, invalid MIDI, oversized arrays, and malformed IDs.
-- Unknown future schema versions must not be overwritten.
-- Migrations must be pure functions with fixture tests.
-- Storage read/write exceptions are recoverable and must not block typing.
-
-## 6. Privacy
-
-Raw text is ephemeral by default. Saved composition events reveal timing and physical key codes, so users must be told that saving a composition stores note-event metadata. No analytics endpoint is included in the first release.
+- At most 20 persisted compositions, 2,000 note events each, 1 MB imported file.
+- No automatic cloud backup.
+- Clear library removes saved compositions; browser settings remain unless the profile is reset.
+- Session summary persistence, conflict resolution across tabs, and advanced history analytics are not implemented in this milestone.

@@ -1,118 +1,70 @@
-# Implementation Plan
+# Phased Implementation Plan
 
-**Delivery strategy:** vertical slices, evidence before expansion.
+**Snapshot: 2026-11-18 — software implementation in PR #1, physical acceptance NOT RUN.**
 
-## Current delivery snapshot — 2026-11-17
+## Delivery principles
 
-### Engineering foundation
-- [x] Architecture documents and ADRs.
-- [x] React + TypeScript + Vite application scaffold.
-- [x] Domain pitch mapping, harmony progression, and typing metrics.
-- [x] Web Audio synthesis service with three presets, mute/volume, bounded voices, explicit initialization, and fake-context unit coverage.
-- [x] Local settings and bounded composition persistence.
-- [x] Vitest unit/component tests and Playwright Chromium E2E in CI.
-- [x] CI typecheck, test, browser E2E, and production build pass.
+Complete one testable vertical slice before expanding scope. Prefer pure domain algorithms, narrow browser adapters, local-first privacy, and independent tests. Work on a PR branch, keep raw evidence, and do not claim acoustic latency from JS timing alone.
 
-### First product vertical slice
-- [x] Free Play and Typing Flow.
-- [x] Keyboard-to-note feedback and three synthesized timbres.
-- [x] Word-boundary bass pulses and punctuation chord accents.
-- [x] Collapsible keyboard visualizer and active-key feedback.
-- [x] Save and replay compositions locally without saving source text.
-- [x] Basic WPM and target-text accuracy display.
+## Phase 0 — Engineering baseline and reliability
 
-### Not yet release-verified
-- [ ] Real-device 10-minute audio soak test.
-- [ ] Physical keydown-to-audible-output latency measurement.
-- [ ] IME and non-QWERTY layout verification in real browsers.
-- [x] AnalyserNode waveform visualization.
-- [ ] Richer accompaniment and additional arrangement controls.
-- [ ] Package lockfile and npm ci.
-- [ ] Composition rename/delete/export and storage migration.
-- [ ] Cross-browser accessibility and performance audit.
+| Deliverable | Status |
+|---|---|
+| Architecture, ADRs, domain/audio/UI boundaries | Implemented |
+| React/TypeScript/Vite, Vitest, Playwright and GitHub Actions | Implemented |
+| Committed package-lock and npm ci | Implemented |
+| Focused native text input, IME composition support | Implemented; real physical IME matrix NOT RUN |
+| Physical/character-based mapping for alternative layouts | Implemented; real AZERTY/Dvorak validation NOT RUN |
+| Audio lifecycle and fake-context tests | Implemented |
+| Hardware P50/P95 audible latency | NOT RUN — see DEVICE_AUDIO_ACCEPTANCE.md |
+| Ten-minute physical audio soak | NOT RUN — see DEVICE_AUDIO_ACCEPTANCE.md |
 
-The current code is a tested first product slice. Do not mark the MVP release complete until the remaining physical-device and reliability gates are evidenced.
+## Phase 1 — Free Play and typing experience
 
-## Phase 0 — Architecture and engineering foundation
+- [x] Three browser-synthesized timbres, mute, volume, pause, clear.
+- [x] Audio cap, gentle filter, and conservative voice gain.
+- [x] Phrase chords, bass punctuation/word accents, rhythm-derived velocity.
+- [x] Free Play, Typing Flow, gross WPM and target-based accuracy.
+- [x] Canvas audio waveform and collapsible physical key visualization.
+- [x] JS scheduling overhead diagnostic with bounded sample collection.
+- [ ] Physical acoustic listening and clipping validation.
+- [ ] Multi-browser accessibility audit.
 
-Deliver:
-- Architecture decision records and system design.
-- React + TypeScript + Vite project scaffold.
-- CI for typecheck, tests, and production build.
-- Domain pitch mapper and pure typing metrics.
-- AudioEngine interface and first synthesized preset.
-- Minimal accessible app shell.
+## Phase 2 — Composition Studio and local data
 
-Exit gate:
-- CI green.
-- Unit tests cover pitch mapping, frequency conversion, and typing metrics.
-- Typing remains functional if AudioContext is unavailable.
-- Audio is only enabled after a user gesture.
-- No global keyboard listener.
+- [x] Save, rename, delete, clear, replay, JSON import/export.
+- [x] Standard MIDI File format 0 export.
+- [x] IndexedDB composition store schema v2; validated legacy localStorage import, retention cap and fallback.
+- [x] Buffered replay with ≤160 ms lookahead instead of scheduling every oscillator at once.
+- [x] Original preset for replay; stop playback.
+- [ ] Concurrency/recovery under forced quota and browser termination, and persistence fuzzing.
 
-## Phase 1 — Usable Free Play MVP
+## Phase 3 — Musical customization
 
-Deliver:
-- Free Play typing surface.
-- Three synthesized presets.
-- Mute, volume, pause, and clear controls.
-- Session note-event buffer.
-- Composition replay.
-- Versioned local settings and bounded composition history.
-- Responsive visual design.
+- [x] Major/minor pentatonic, major, natural minor and blues scale.
+- [x] Custom semitone intervals, root note and persisted mapping preference.
+- [x] Typed-character mapping for alternate layouts and committed IME code points.
+- [x] Transposed accompaniment chord roots.
+- [ ] Sampled acoustic piano assets only if independently licensed and listening tests justify bundle cost.
+- [ ] Optional advanced arrangement, tempo and rhythm controls after user validation.
 
-Exit gate:
-- Manual 10-minute typing soak test.
-- No unbounded voice growth or unhandled promise rejection.
-- Mute works immediately.
-- Replay preserves event order and relative timing.
-- Storage corruption and quota errors are non-fatal.
-- Keyboard focus and IME regression checks pass.
+## Phase 4 — Release acceptance
 
-## Phase 2 — Typing Flow and feedback
+Required before a physical-audio-verified release:
 
-Deliver:
-- Target text practice.
-- Accuracy and WPM with documented definitions.
-- Session summaries and personal baseline.
-- Virtual keyboard visualization and optional weak-key analysis.
-- Keyboard layout abstraction.
+1. All required CI checks green on exact release commit.
+2. 200 measured contacts on reference wired output with P50 ≤50 ms and P95 ≤80 ms, including methodology and raw evidence.
+3. Ten-minute physical typing/audio soak, no lost text, stuck notes, clipping or unbounded resource growth.
+4. Real QWERTY + non-QWERTY + Chinese Pinyin IME matrix on specified devices.
+5. Safari and Firefox compatibility audit, keyboard accessibility, reduced motion and failure fallbacks.
+6. Clear open issues for every failed or untested condition; explicitly label NOT RUN.
 
-Exit gate:
-- Metrics match hand-calculated fixtures.
-- Free Play never displays misleading accuracy.
-- Text input remains native and supports IME.
+Source of truth: [release ledger](../verification/RELEASE_GATES.md) and [physical acceptance protocol](../verification/DEVICE_AUDIO_ACCEPTANCE.md).
 
-## Phase 3 — Composition studio
+## Developer quality gates
 
-Deliver:
-- Saved composition library.
-- Rename/delete.
-- Export event JSON and MIDI if implementation and licensing review pass.
-- User-defined scales and mapping profiles.
-- More expressive accompaniment.
-
-Exit gate:
-- Export/import round-trip tests.
-- Versioned schema migration.
-- Audio performance profiling on reference hardware.
-
-## Phase 4 — Product hardening
-
-Deliver:
-- PWA/offline support if user research supports it.
-- Cross-browser test matrix.
-- Accessibility audit.
-- Performance and latency report.
-- Release documentation and license review.
-
-## Execution rules
-
-1. Work on a feature branch; do not push unreviewed implementation directly to main.
-2. Reproduce before fixing defects.
-3. Add a failing test before changing behavior when practical.
-4. Do not delete or weaken tests to make CI green.
-5. Record every unverified assumption in GOTCHAS.md.
-6. Mark tests NOT RUN when they were not executed.
-7. Keep commits small and phase-scoped.
-8. Do not claim audible latency targets without physical measurement.
+- Do not delete or weaken tests to obtain a green build.
+- Keep domain logic pure; audio scheduling must be independent of React render.
+- Preserve raw-text minimization during future storage/export migrations.
+- A canceled or skipped CI run is not evidence of PASS.
+- Record new pitfalls in GOTCHAS.md with reproducible steps and exact commit/run IDs.
