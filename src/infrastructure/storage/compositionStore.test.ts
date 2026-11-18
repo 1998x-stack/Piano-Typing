@@ -22,6 +22,24 @@ describe("CompositionStore schema and fallback", () => {
     expect(upgraded?.schemaVersion).toBe(2);
     expect(JSON.stringify(upgraded)).not.toContain("never save this");
   });
+  it("rejects covert text inside a physical code, and bounds event timing", () => {
+    expect(normalizeComposition({
+      ...example,
+      notes: [{ id:"note-a", code:"secret typing text", midi:60, atMs:0, durationMs:400 }]
+    })).toBeNull();
+    expect(normalizeComposition({
+      ...example,
+      notes: [{ id:"note-a", code:"KeyA", midi:60, atMs:3_600_001, durationMs:400 }]
+    })).toBeNull();
+  });
+  it("repairs invalid optional musical metadata when migrating a legacy record", () => {
+    const normalized = normalizeComposition({
+      ...example, rootMidi: 200, scaleId: "future-scale", customScale: [0,12,8]
+    });
+    expect(normalized?.rootMidi).toBe(60);
+    expect(normalized?.scaleId).toBe("major-pentatonic");
+    expect(normalized?.customScale).toEqual([0,2,4,7,9]);
+  });
   it("round-trips versioned JSON export and import", () => {
     const exported = exportCompositionJson(example);
     expect(importCompositionJson(exported)).toEqual(normalizeComposition(example));
