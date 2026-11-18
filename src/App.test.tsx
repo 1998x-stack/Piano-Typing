@@ -79,6 +79,16 @@ describe("Piano Typing application", () => {
     expect(screen.getByTestId("notes-count")).toHaveTextContent("1");
   });
 
+  it("opens a composition editor after saving a session", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText("Type here"), "cat");
+    await user.click(screen.getByRole("button", { name: "Save composition" }));
+    expect(await screen.findByText("Untitled composition")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Rename Untitled composition" }));
+    expect(screen.getByRole("textbox", { name: /Rename composition/ })).toBeInTheDocument();
+  });
+
   it("toggles mute without disabling the typing surface", async () => {
     const user = userEvent.setup();
     render(<App />);
