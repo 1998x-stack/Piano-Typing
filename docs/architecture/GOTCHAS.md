@@ -53,6 +53,5 @@ This file is a durable handoff log for verified issues and important implementat
 | 2026-11-17 | Current full validation | Run 44099124926 passed typecheck, 27 unit/component tests, Playwright Chromium install, 5 browser E2E tests, and production build on commit d065a52 | PASS |
 | 2026-11-17 | Audio and session hardening | Added fake-AudioContext tests for initialization, chord scheduling, mute, polyphony, and long replay offsets; added pause/resume session coverage | PASS |
 | 2026-11-17 | Latest full CI | Run 44102221767 passed typecheck, 34 unit/component tests, Playwright Chromium install, 5 browser E2E tests, and production build on commit 5600cf4 | PASS |
-
 | 2026-11-18 | Extended browser E2E | CI run 44235869055: TypeScript and unit tests PASS, Chromium 7/9 PASS; two failures were exact Scale locator and generic rather than native CompositionEvent test data | FIXED |
 | 2026-11-18 | Expanded CI validation | Run 44236304259: npm ci, strict typecheck, 56/56 unit/component tests, 9/9 Chromium E2E tests, production build | PASS |
