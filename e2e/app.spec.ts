@@ -39,8 +39,19 @@ test("saves composition events locally without persisting source text", async ({
   await page.getByRole("button", { name: "Save composition" }).click();
 
   await expect(page.getByText("Untitled composition")).toBeVisible();
-  const stored = await page.evaluate(() => localStorage.getItem("piano-typing.compositions.v1"));
-  expect(stored).not.toContain("private phrase");
+  const stored = await page.evaluate(async () => {
+    return new Promise<unknown[]>((resolve, reject) => {
+      const request = indexedDB.open("piano-typing", 2);
+      request.onsuccess = () => {
+        const tx = request.result.transaction("compositions", "readonly");
+        const all = tx.objectStore("compositions").getAll();
+        all.onsuccess = () => resolve(all.result);
+        all.onerror = () => reject(all.error);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  });
+  expect(JSON.stringify(stored)).not.toContain("private phrase");
 
   await page.reload();
   await expect(page.getByText("Untitled composition")).toBeVisible();
@@ -78,4 +89,37 @@ test("commits Chinese IME characters once without interim synthetic notes", asyn
   await expect(page.getByTestId("notes-count")).toHaveText("0");
   await input.dispatchEvent("compositionend", { data: "中文" });
   await expect(page.getByTestId("notes-count")).toHaveText("2");
+});
+
+
+test("renames, exports MIDI, and deletes a saved composition", async ({ page }) => {
+  await page.getByLabel("Type here").pressSequentially("studio");
+  await page.getByRole("button", { name: "Save composition" }).click();
+  await expect(page.getByText("Untitled composition")).toBeVisible();
+  await page.getByRole("button", { name: "Rename Untitled composition" }).click();
+  await page.getByRole("textbox", { name: /Rename composition/ }).fill("My first melody");
+  await page.getByRole("button", { name: "Save name" }).click();
+  await expect(page.getByText("My first melody")).toBeVisible();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Export My first melody as MIDI" }).click()
+  ]);
+  expect(download.suggestedFilename()).toBe("My-first-melody.mid");
+  await page.getByRole("button", { name: "Delete My first melody" }).click();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
+  await expect(page.getByText("My first melody")).toHaveCount(0);
+});
+
+test("migrates legacy localStorage compositions to versioned IndexedDB", async ({ page }) => {
+  const legacy = [{
+    id: "legacy-a", title: "Legacy melody", createdAt: "2026-11-17T10:00:00.000Z",
+    durationMs: 500, preset: "felt-piano",
+    notes: [{ id: "note-a", code: "KeyA", midi: 60, atMs: 0, durationMs: 400 }]
+  }];
+  await page.evaluate((items) => localStorage.setItem("piano-typing.compositions.v1", JSON.stringify(items)), legacy);
+  await page.reload();
+  await expect(page.getByText("Legacy melody")).toBeVisible();
+  await expect.poll(async () => page.evaluate(
+    () => localStorage.getItem("piano-typing.compositions.v1")
+  )).toBeNull();
 });
